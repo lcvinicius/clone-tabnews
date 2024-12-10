@@ -1,9 +1,33 @@
 import database from "infra/database.js";
 
 async function status(request, response) {
-  const result = await database.query("SELECT 18 + 1;");
-  console.log(result);
-  response.status(200).json({ chave: "são acima da média" });
+  const updatedAt = new Date().toISOString();
+
+  const queryResult = await database.query("SHOW server_version;");
+  const postVersion = queryResult.rows[0].server_version;
+
+  const databaseMaxConnections = await database.query("SHOW max_connections;");
+  const databaseMaxConnectionsValue =
+    databaseMaxConnections.rows[0].max_connections;
+
+  const databaseName = process.env.POSTGRES_DB;
+  const databaseOpenedConnectionsResult = await database.query({
+    text: "SELECT count(*)::int FROM pg_stat_activity WHERE datname = $1",
+    values: [databaseName],
+  });
+  const databaseOpenedConnectionsValue =
+    databaseOpenedConnectionsResult.rows[0].count;
+
+  response.status(200).json({
+    updated_at: updatedAt,
+    dependencies: {
+      database: {
+        version: postVersion,
+        max_connections: parseInt(databaseMaxConnectionsValue),
+        opened_connections: databaseOpenedConnectionsValue,
+      },
+    },
+  });
 }
 
 export default status;
